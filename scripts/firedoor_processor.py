@@ -1558,11 +1558,14 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
         # MAURICIO FIX: Calculate client total with margin
         client_total = total_cost / (1 - target_margin) if (1 - target_margin) > 0 else total_cost
         
-        # Write values to Quote Sheet
+        # Write values to Quote Sheet (matching template structure)
         quote_sheet.cell(row=row_num, column=3).value = qty           # Column C (QTY)
-        quote_sheet.cell(row=row_num, column=4).value = mat_rate      # Column D (MAT'S rate)
-        quote_sheet.cell(row=row_num, column=5).value = lab_rate      # Column E (LAB rate)
+        quote_sheet.cell(row=row_num, column=4).value = "no"          # Column D (Unit)
+        # Column E (TOTAL RATE) - should be from Rate Card col H, but we'll let template formula handle it
+        quote_sheet.cell(row=row_num, column=6).value = client_total  # Column F (CLIENT TOTAL)
+        quote_sheet.cell(row=row_num, column=7).value = mat_rate      # Column G (MAT'S rate)
         quote_sheet.cell(row=row_num, column=8).value = mat_total     # Column H (MAT'S TOTAL)
+        quote_sheet.cell(row=row_num, column=9).value = lab_rate      # Column I (LAB rate)
         quote_sheet.cell(row=row_num, column=10).value = lab_total    # Column J (LAB TOTAL)
         quote_sheet.cell(row=row_num, column=15).value = total_cost   # Column O (TOTAL COST)
         quote_sheet.cell(row=row_num, column=16).value = client_total # Column P (TOTAL with margin)
