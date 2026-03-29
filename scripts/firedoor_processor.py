@@ -1562,15 +1562,12 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
         quote_sheet.cell(row=row_num, column=3).value = qty           # Column C (QTY)
         quote_sheet.cell(row=row_num, column=4).value = mat_rate      # Column D (MAT'S rate)
         quote_sheet.cell(row=row_num, column=5).value = lab_rate      # Column E (LAB rate)
-        quote_sheet.cell(row=row_num, column=7).value = mat_total     # Column G (MAT'S TOTAL)
-        quote_sheet.cell(row=row_num, column=9).value = lab_total     # Column I (LAB TOTAL)
+        quote_sheet.cell(row=row_num, column=8).value = mat_total     # Column H (MAT'S TOTAL)
+        quote_sheet.cell(row=row_num, column=10).value = lab_total    # Column J (LAB TOTAL)
         quote_sheet.cell(row=row_num, column=15).value = total_cost   # Column O (TOTAL COST)
         quote_sheet.cell(row=row_num, column=16).value = client_total # Column P (TOTAL with margin)
         
-        # FIX #3: Write zero to T&J and Humping rate columns to exclude from breakdown
-        quote_sheet.cell(row=row_num, column=11).value = 0            # Column K (T&J rate) = 0
-        quote_sheet.cell(row=row_num, column=13).value = 0            # Column M (Humping rate) = 0
-        # This makes columns L and N = 0, so column O = columns H + J only (Materials + Labour = COST)
+        # T&J and HUMP columns will be deleted at the end (columns 11-14)
         
         # FIX #1: Door IDs reference column (use column S, after all existing columns)
         quote_sheet.cell(row=row_num, column=19).value = door_ids_str # Column S (DOOR IDs)
@@ -1676,8 +1673,7 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
         quote_sheet.cell(row=row_num, column=4).value = description    # Column D (DESCRIPTION with A-code)
         quote_sheet.cell(row=row_num, column=5).value = cost_rate      # Column E (RATE = Rate Card Total, plain cost)
         quote_sheet.cell(row=row_num, column=6).value = cost_total     # Column F (TOTAL = QTY × RATE, cost subtotal)
-        quote_sheet.cell(row=row_num, column=11).value = 0             # Column K (T&J rate) = 0
-        quote_sheet.cell(row=row_num, column=13).value = 0             # Column M (Humping rate) = 0
+        # T&J and HUMP columns will be deleted at the end
         quote_sheet.cell(row=row_num, column=19).value = door_ids_str  # Column S (DOOR IDs)
         
         if qty > 0:
@@ -1935,6 +1931,15 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
         logger.info(f"  Hardwood void infill (B12) = {void_infill_count}")
     
     logger.info("=== Line item numbers + header values written ===")
+    
+    # FINAL FIX: Delete T&J and HUMP columns entirely from Quote Sheet
+    # Delete in reverse order to avoid column index shifting
+    # Columns to delete: 14 (HUMP TOTAL), 13 (HUMP), 12 (T & J TOTAL), 11 (T & J)
+    quote_sheet = wb['Quote Sheet']
+    for col_idx in [14, 13, 12, 11]:
+        quote_sheet.delete_cols(col_idx)
+        logger.info(f"Deleted column {col_idx} from Quote Sheet")
+    logger.info("T&J and HUMP columns removed from Quote Sheet")
     
     # Save workbook
     try:
