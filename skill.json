@@ -1,0 +1,23 @@
+{
+  "name": "fire-door-quote",
+  "displayName": "Fire Door Quote Generator",
+  "description": "Generate fire door compliance quotes from building survey data. Processes survey PDFs/text, extracts door specifications, maps to compliance codes, and produces detailed Excel quotes with materials, labor, and pricing.",
+  "version": "1.0.0",
+  "author": "WestPark Fire Door Services",
+  "skillFile": "SKILL.md",
+  "category": "business",
+  "tags": ["compliance", "quoting", "construction", "fire-safety", "excel"],
+  "requirements": {
+    "python": ">=3.9",
+    "packages": ["openpyxl", "anthropic"]
+  },
+  "scripts": {
+    "main": "scripts/generate_quote.py",
+    "processor": "scripts/firedoor_processor.py"
+  },
+  "assets": {
+    "template": "assets/WestPark_FireDoor_CostSheet_v3_AlphaSights.xlsx",
+    "rules": "references/FIRE_DOOR_RULES.md",
+    "mapping": "scripts/reference_files/BMTrada_ART_Codes_RateCard_Mapping.csv"
+  }
+}
