@@ -1415,6 +1415,34 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
     logger.info(f"Option B A-code counts: {a_code_counts}")
     logger.info(f"Option B door IDs: {a_code_door_ids}")
     
+    # MANDATORY REPLACEMENT LOGIC: Detect doors that MUST be replaced (cannot be repaired)
+    # These doors have Opt A = NO and Opt B = YES (e.g., A12-L3, A14-L3)
+    # They need to appear in BOTH Option A and Option B
+    mandatory_replacement_counts = {}
+    mandatory_replacement_door_ids = {}
+    
+    for row in range(4, 200):
+        door_id = door_schedule.cell(row=row, column=1).value
+        if not door_id:
+            continue
+        
+        opt_a = door_schedule.cell(row=row, column=14).value  # Column N (Option A)
+        opt_b = door_schedule.cell(row=row, column=15).value  # Column O (Option B)
+        a_code = door_schedule.cell(row=row, column=24).value  # Column X (OPT B REPLACEMENT CODE)
+        
+        # Mandatory replacement: Opt A = NO and Opt B = YES
+        if opt_a == 'NO' and opt_b == 'YES' and a_code:
+            a_code_str = str(a_code).strip()
+            if a_code_str not in mandatory_replacement_counts:
+                mandatory_replacement_counts[a_code_str] = 0
+                mandatory_replacement_door_ids[a_code_str] = []
+            mandatory_replacement_counts[a_code_str] += 1
+            mandatory_replacement_door_ids[a_code_str].append(str(door_id))
+            logger.info(f"Door {door_id}: MANDATORY REPLACEMENT - Opt A=NO, Opt B=YES, A-code={a_code_str}")
+    
+    logger.info(f"Mandatory replacement A-code counts: {mandatory_replacement_counts}")
+    logger.info(f"Mandatory replacement door IDs: {mandatory_replacement_door_ids}")
+    
     # ISSUE #2 VALIDATION: Count total doors with OptA=YES for reconciliation
     opt_a_yes_count = sum(1 for row in range(4, 200) 
                           if door_schedule.cell(row=row, column=14).value == 'YES')
@@ -1577,6 +1605,73 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
         
         if qty > 0:
             logger.info(f"Quote Sheet {b_code}: QTY={qty}, MAT={mat_rate}×{qty}={mat_total}, LAB={lab_rate}×{qty}={lab_total}, COST={total_cost}, CLIENT={client_total}")
+    
+    # MANDATORY REPLACEMENT ROWS: Add A-series replacement codes to Option A (rows 23-24)
+    # These are doors that cannot be repaired (Opt A=NO, Opt B=YES)
+    # They appear in BOTH Option A and Option B
+    if mandatory_replacement_counts:
+        logger.info("Adding mandatory replacement line items to Option A...")
+        
+        # Get A-series rates from Rate Card (column G = per-door unit rate)
+        a_series_rates = {}
+        a_series_materials_rates = {}
+        a_series_labour_rates = {}
+        for row_num in range(6, 40):  # A-series codes in Rate Card
+            code = rate_card_sheet.cell(row=row_num, column=1).value
+            if code and str(code).startswith('A'):
+                # Column G = per-door unit rate (MAT'S + LAB + markup)
+                unit_rate = rate_card_sheet.cell(row=row_num, column=7).value or 0
+                mat_rate = rate_card_sheet.cell(row=row_num, column=4).value or 0  # Column D (MAT'S)
+                lab_rate = rate_card_sheet.cell(row=row_num, column=5).value or 0  # Column E (LAB)
+                a_series_rates[str(code)] = unit_rate
+                a_series_materials_rates[str(code)] = mat_rate
+                a_series_labour_rates[str(code)] = lab_rate
+        
+        logger.info(f"A-series rates from Rate Card column G (unit rates): {a_series_rates}")
+        
+        # Write mandatory replacement line items to rows 23-24
+        mandatory_row_num = 23
+        for a_code in sorted(mandatory_replacement_counts.keys()):
+            qty = mandatory_replacement_counts[a_code]
+            unit_rate = a_series_rates.get(a_code, 0)
+            mat_rate = a_series_materials_rates.get(a_code, 0)
+            lab_rate = a_series_labour_rates.get(a_code, 0)
+            mat_total = qty * mat_rate
+            lab_total = qty * lab_rate
+            total_cost = mat_total + lab_total
+            client_total = total_cost / (1 - target_margin) if (1 - target_margin) > 0 else total_cost
+            
+            door_ids = mandatory_replacement_door_ids.get(a_code, [])
+            door_ids_str = ', '.join(door_ids) if door_ids else ''
+            
+            # Get description from get_aseries_description()
+            description = get_aseries_description(a_code) + " (MANDATORY REPLACEMENT)"
+            
+            # Write to Quote Sheet
+            quote_sheet.cell(row=mandatory_row_num, column=1).value = f"A.{13 + (mandatory_row_num - 23)}"  # A.13, A.14, etc.
+            quote_sheet.cell(row=mandatory_row_num, column=2).value = description
+            quote_sheet.cell(row=mandatory_row_num, column=3).value = qty           # QTY
+            quote_sheet.cell(row=mandatory_row_num, column=4).value = "no"          # Unit
+            quote_sheet.cell(row=mandatory_row_num, column=5).value = unit_rate     # RATE (column G from Rate Card)
+            quote_sheet.cell(row=mandatory_row_num, column=6).value = client_total  # CLIENT TOTAL
+            quote_sheet.cell(row=mandatory_row_num, column=7).value = mat_rate      # MAT'S rate
+            quote_sheet.cell(row=mandatory_row_num, column=8).value = mat_total     # MAT'S TOTAL
+            quote_sheet.cell(row=mandatory_row_num, column=9).value = lab_rate      # LAB rate
+            quote_sheet.cell(row=mandatory_row_num, column=10).value = lab_total    # LAB TOTAL
+            quote_sheet.cell(row=mandatory_row_num, column=11).value = total_cost   # TOTAL COST
+            quote_sheet.cell(row=mandatory_row_num, column=12).value = client_total - total_cost  # PROFIT
+            quote_sheet.cell(row=mandatory_row_num, column=13).value = target_margin  # % MARGIN
+            quote_sheet.cell(row=mandatory_row_num, column=14).value = (client_total - total_cost) / total_cost if total_cost > 0 else 0  # % PROFIT
+            quote_sheet.cell(row=mandatory_row_num, column=15).value = door_ids_str  # Door IDs
+            
+            # Update Option A totals to include this mandatory replacement
+            option_a_cost += total_cost
+            option_a_client += client_total
+            
+            logger.info(f"Quote Sheet row {mandatory_row_num} ({a_code}): {description}, QTY={qty}, RATE={unit_rate}, COST={total_cost}, CLIENT={client_total}, Doors={door_ids_str}")
+            mandatory_row_num += 1
+        
+        logger.info(f"Updated Option A totals (including mandatory replacements): COST=£{option_a_cost}, CLIENT=£{option_a_client}")
     
     # Step 5: Write calculated NUMBERs to Client Summary
     # FIX #5: Client Summary shows CLIENT PRICES (with margin), not costs
