@@ -1421,14 +1421,38 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
     mandatory_replacement_counts = {}
     mandatory_replacement_door_ids = {}
     
+    logger.info("=== MANDATORY REPLACEMENT DETECTION START ===")
+    logger.info(f"Scanning Door Schedule rows 4-200...")
+    rows_scanned = 0
+    rows_with_opt_b_yes = 0
+    rows_with_opt_a_no = 0
+    
     for row in range(4, 200):
         door_id = door_schedule.cell(row=row, column=1).value
         if not door_id:
+            if rows_scanned > 0:
+                # We've started seeing doors, now we hit an empty row - probably done
+                break
             continue
         
+        rows_scanned += 1
         opt_a = door_schedule.cell(row=row, column=14).value  # Column N (Option A)
         opt_b = door_schedule.cell(row=row, column=15).value  # Column O (Option B)
         a_code = door_schedule.cell(row=row, column=24).value  # Column X (OPT B REPLACEMENT CODE)
+        
+        # Debug logging for all rows
+        if opt_b == 'YES':
+            rows_with_opt_b_yes += 1
+        if opt_a == 'NO':
+            rows_with_opt_a_no += 1
+        
+        # Extra verbose logging for specific doors
+        if door_id and ('A12-L3' in str(door_id) or 'A14-L3' in str(door_id)):
+            logger.info(f"DEBUG: Found target door {door_id} at row {row}")
+            logger.info(f"  Opt A (col 14): '{opt_a}' (type: {type(opt_a).__name__})")
+            logger.info(f"  Opt B (col 15): '{opt_b}' (type: {type(opt_b).__name__})")
+            logger.info(f"  A-code (col 24): '{a_code}' (type: {type(a_code).__name__})")
+            logger.info(f"  Condition check: opt_a=='NO'={opt_a=='NO'}, opt_b=='YES'={opt_b=='YES'}, has_a_code={bool(a_code)}")
         
         # Mandatory replacement: Opt A = NO and Opt B = YES
         if opt_a == 'NO' and opt_b == 'YES' and a_code:
@@ -1438,8 +1462,12 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
                 mandatory_replacement_door_ids[a_code_str] = []
             mandatory_replacement_counts[a_code_str] += 1
             mandatory_replacement_door_ids[a_code_str].append(str(door_id))
-            logger.info(f"Door {door_id}: MANDATORY REPLACEMENT - Opt A=NO, Opt B=YES, A-code={a_code_str}")
+            logger.info(f"✓ Door {door_id}: MANDATORY REPLACEMENT - Opt A=NO, Opt B=YES, A-code={a_code_str}")
     
+    logger.info(f"=== MANDATORY REPLACEMENT DETECTION COMPLETE ===")
+    logger.info(f"Total rows scanned: {rows_scanned}")
+    logger.info(f"Rows with Opt B=YES: {rows_with_opt_b_yes}")
+    logger.info(f"Rows with Opt A=NO: {rows_with_opt_a_no}")
     logger.info(f"Mandatory replacement A-code counts: {mandatory_replacement_counts}")
     logger.info(f"Mandatory replacement door IDs: {mandatory_replacement_door_ids}")
     
