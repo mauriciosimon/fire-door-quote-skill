@@ -1234,10 +1234,11 @@ def populate_excel_template(doors: List[Dict], client_name: str, template_path: 
         # Mandatory replacements (ART17/18/20) still show Opt B = YES in column O
         # But ALL non-compliant doors get an A-series code in column S for Option B pricing
         
-        a_series_code = ''  # For column S (OPT B REPLACEMENT CODE)
+        a_series_code = ''  # For column X (OPT B REPLACEMENT CODE)
         
-        # Calculate A-series code for ANY non-compliant door
-        if not is_compliant and not is_type2:
+        # Calculate A-series code for ANY non-compliant door OR replacement door
+        # FIX: needs_replacement doors must ALWAYS get an A-series code, even if marked compliant
+        if (not is_compliant or needs_replacement) and not is_type2:
             # Get door height (from extraction or default)
             door_height = door.get('door_height_mm', None)
             
